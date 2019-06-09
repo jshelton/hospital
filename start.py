@@ -19,7 +19,7 @@ df = pd.read_csv('../ERlast2years.csv',
 df = df.set_index(['registration_datetime'])
 
 
-da = df.copy()
+da = df[['patient']].copy()
 
 
 ############################# Begin Group by Day/Hour  #############################
@@ -47,7 +47,7 @@ da = df.copy()
 # print(da.loc[mask])
 startdate = pd.to_datetime('2018-06-28 01:38:08')
 enddate = pd.to_datetime(startdate) + timedelta(hours=1)
-print(df.loc[str(startdate):str(enddate)])
+print(da.loc[str(startdate):str(enddate)])
 
 
 for index, row in df.iterrows():
