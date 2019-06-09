@@ -1,0 +1,6 @@
+triage -  degrees of urgency: 1- most urgent 7- least urgent, 0 - missing data
+
+receivement approvement of first sampling: the datetime in which the first sample was received in the hospital lab
+
+last results document creation hour: the date time in which the last lab results document was created
+
