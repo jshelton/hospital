@@ -3,6 +3,7 @@ from dateutil import parser
 import plotly.plotly as py
 import plotly.graph_objs as go
 import numpy as np
+import time
 
 
 import pandas as pd
@@ -58,24 +59,28 @@ da = da.set_index(['registration_datetime'])
 # enddate = pd.to_datetime(startdate) + timedelta(hours=1)
 # print(len(da.loc[str(startdate):str(enddate)]))
 
-m = np.zeros(len(df))
+visitorCount = np.zeros(len(df))
 segment = 0
 
+start = time.time()
 rowcount = 0
 for index, row in da.iterrows():
-    if (rowcount > 25000 + 25000 * segment):
-        break
+    # if (rowcount > 25000 + 25000 * segment):
+    #     break
     if (rowcount % 2500 == 0):
-        print(rowcount)
+        end = time.time()
+        print(end - start, rowcount)
+        start = time.time()
+
     #     break
     # mask=(da['registration_datetime'] > '2018-06-28 01:38') & (da['registration_datetime'] <= '2018-06-30')
     # print(da.loc[mask])
 
     eventdate = pd.to_datetime(index)
-    startdate = eventdate
+    startdate = eventdate - timedelta(hours=1)
 
     # startdate = pd.to_datetime('2018-06-28 01:38:08')
-    enddate = pd.to_datetime(startdate) + timedelta(hours=1)
+    enddate = eventdate + timedelta(hours=1)
     # df = df.set_index(['registration_datetime'])
 
     # print(rowcount, startdate, enddate, index, row['patient'], len(
@@ -83,10 +88,26 @@ for index, row in da.iterrows():
     # print(da.loc[str(startdate):str(enddate)])
     # print(df.loc[str(startdate):str(enddate)])
 
-    m[rowcount] = len(
+    visitorCount[rowcount] = len(
         da.loc[str(startdate):str(enddate)])
 
     rowcount += 1
+
+df['visits_within_hour'] = visitorCount
+
+spikes = df.loc[(df['visits_within_hour'] >= df.mean()[
+                 'visits_within_hour'] + 2 * df.std()['visits_within_hour'])]
+
+df[['visits_within_hour', 'patient']].groupby('visits_within_hour').count()
+
+
+# data=[go.Scatter(x=df['registration_datetime'], y=df['visits_within_hour'])]
+data = [go.Scatter(x=df['registration_datetime'], y=df['visits_within_hour'])]
+py.iplot(data, filename='time-series-simple')
+
+if false:
+    df.corr().to_csv('Results/Correlation With VisitsWithinHour.csv')
+
 
 # This does not work
 # da['old'] = len(
