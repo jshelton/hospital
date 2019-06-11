@@ -2,6 +2,8 @@ import csv
 from dateutil import parser
 import plotly.plotly as py
 import plotly.graph_objs as go
+import plotly.figure_factory as ff
+
 import numpy as np
 import time
 
@@ -51,22 +53,12 @@ da = df[['registration_datetime', 'patient']].copy()
 
 da = da.set_index(['registration_datetime'])
 
-# row_a = da.iloc[[0]]
-# da.DatetimeIndex
-# da.loc[:,'patient']
-# row_a['registration_datetime']
-# startdate = pd.to_datetime(row_a['registration_datetime'])
-# enddate = pd.to_datetime(startdate) + timedelta(hours=1)
-# print(len(da.loc[str(startdate):str(enddate)]))
 
 visitorCount = np.zeros(len(df))
-segment = 0
 
 start = time.time()
 rowcount = 0
 for index, row in da.iterrows():
-    # if (rowcount > 25000 + 25000 * segment):
-    #     break
     if (rowcount % 2500 == 0):
         end = time.time()
         print(end - start, rowcount)
@@ -86,14 +78,19 @@ for index, row in da.iterrows():
     # print(rowcount, startdate, enddate, index, row['patient'], len(
     #     da.loc[str(startdate):str(enddate)]))
     # print(da.loc[str(startdate):str(enddate)])
-    # print(df.loc[str(startdate):str(enddate)])
 
     visitorCount[rowcount] = len(
         da.loc[str(startdate):str(enddate)])
 
     rowcount += 1
 
-df['visits_within_hour'] = visitorCount
+if 1 == 0:
+    dvisitors = pd.read_csv('Results/DVWithVititsInHour.csv',
+                            low_memory=False)
+
+else:
+    df['visits_within_hour'] = visitorCount
+    # df.to_csv('Results/DVWithVititsInHour.csv')
 
 spikes = df.loc[(df['visits_within_hour'] >= df.mean()[
                  'visits_within_hour'] + 2 * df.std()['visits_within_hour'])]
@@ -101,42 +98,24 @@ spikes = df.loc[(df['visits_within_hour'] >= df.mean()[
 df[['visits_within_hour', 'patient']].groupby('visits_within_hour').count()
 
 
+a = df['visits_within_hour'].values.tolist()
+
+# py.iplot(ff.create_distplot([a[c] for c in a.columns], a.columns, bin_size=1),
+#          filename='distplot with pandas')
+
+# begin example
+x = np.random.randn(1000)
+hist_data = [x]
+group_labels = ['distplot']
+
+fig = ff.create_distplot(hist_data, group_labels)
+py.iplot(fig, filename='Basic Distplot')
+# End Example
+
 # data=[go.Scatter(x=df['registration_datetime'], y=df['visits_within_hour'])]
-data = [go.Scatter(x=df['registration_datetime'], y=df['visits_within_hour'])]
+# data = [go.Scatter(x=dff['registration_datetime'], y=dff['visits_within_hour'])]
+
 py.iplot(data, filename='time-series-simple')
 
-if false:
+if 1 == 0:
     df.corr().to_csv('Results/Correlation With VisitsWithinHour.csv')
-
-
-# This does not work
-# da['old'] = len(
-# da.loc[da['registration_datetime']:str(pd.to_datetime(da['registration_datetime'])
-# + timedelta(hours=1))])
-
-# da = da.assign(e=p.Series(np.random.randn(sLength)).values)
-
-
-# for i in range(1, len(df)):
-# df.loc[i, 'C'] = df.loc[i-1, 'C'] * df.loc[i, 'A'] + df.loc[i, 'B']
-
-
-# with open('Data/ERlast2years.csv') as csvfile:
-#     reader = csv.DictReader(csvfile)
-#     size = 5
-#     row = [None]*size
-#     initrow = 0
-# #	print(row)
-#     for rowIn in reader:
-#         if initrow == 0:
-#             row[0] = rowIn
-
-#             initrow = 1
-#             print("first run")
-#             continue
-#         else:
-#             row[1] = rowIn
-#             print(pd.to_datetime(row[1]['registration_datetime']) -
-#                   pd.to_datetime(row[0]['registration_datetime']))
-
-#             row[0] = row[1]
