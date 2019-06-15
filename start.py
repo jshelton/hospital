@@ -8,6 +8,8 @@ import numpy as np
 import time
 import hebcal
 
+from sklearn.linear_model import LinearRegression
+
 
 import pandas as pd
 from datetime import datetime, timedelta
@@ -33,17 +35,18 @@ df = df.sort_values('registration_datetime')
 # df['holday'] =
 
 
-df['dthour'] = df['registration_datetime'].dt.hour
-df['dtmonth'] = df['registration_datetime'].dt.month
-df['dtweekday'] = df['registration_datetime'].dt.weekday
+df['hour'] = df['registration_datetime'].dt.hour
+df['month'] = df['registration_datetime'].dt.month
+df['day'] = df['registration_datetime'].dt.day
+df['weekday'] = df['registration_datetime'].dt.weekday
 # This has monday = 0
 seasons = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 1]
 month_to_season = dict(zip(range(1, 13), seasons))
-df['dtseason'] = df['registration_datetime'].dt.month.map(month_to_season)
+df['season'] = df['registration_datetime'].dt.month.map(month_to_season)
 
 # df['day_of_week'] = df['registration_datetime'].dt.day_name()
 df['hourofweek'] = df.apply(lambda x: "%02d%02d" %
-                            (x['dtweekday'], x['dthour']), axis=1)
+                            (x['weekday'], x['hour']), axis=1)
 
 ############################# Begin Group by Day/Hour  #############################
 # If going to do resampling
@@ -60,32 +63,49 @@ df['hourofweek'] = df.apply(lambda x: "%02d%02d" %
 # dg = df[['registration_datetime', 'patient']].resample(
 #     '30min', on='registration_datetime').apply(countLines)
 
+df['countItems'] = 1
 
-dg = df[['registration_datetime', 'minutes_from_admittance_to_discharge']].resample(
-    '60min', on='registration_datetime').count()
+dg = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
+    '60min', on='registration_datetime').sum()
+
+# dg.set_index(['registration_datetime'], inplace=True)
 
 dg['registration_datetime'] = dg.index
 
-dg['dthour'] = dg['registration_datetime'].dt.hour
-dg['dtmonth'] = dg['registration_datetime'].dt.month
-dg['dtweekday'] = dg['registration_datetime'].dt.weekday
+
+dg['hour'] = dg['registration_datetime'].dt.hour
+dg['month'] = dg['registration_datetime'].dt.month
+dg['day'] = dg['registration_datetime'].dt.day
+dg['weekday'] = dg['registration_datetime'].dt.weekday
 # This has monday = 0
 seasons = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 1]
 month_to_season = dict(zip(range(1, 13), seasons))
-dg['dtseason'] = dg['registration_datetime'].dt.month.map(month_to_season)
+dg['season'] = dg['registration_datetime'].dt.month.map(month_to_season)
 
 # df['day_of_week'] = df['registration_datetime'].dt.day_name()
-# dg['hourofweek'] = dg.apply(lambda x:"%02d%02d" % (x['dtweekday'],x['dthour']),axis=1)
+# dg['hourofweek'] = dg.apply(lambda x:"%02d%02d" % (x['weekday'],x['hour']),axis=1)
 dg['hourofweek'] = dg.apply(lambda x: (
-    x['dtweekday'] * 24 + x['dthour']), axis=1)
+    x['weekday'] * 24 + x['hour']), axis=1)
+
+hourofweekMeans = dg.groupby(dg.hourofweek).mean()
+dayofmonthMeans = dg.groupby(dg.day).mean()
+seasonofyearMeans = dg.groupby(dg.season).mean()
+# dhwstd = dg.groupby(dg.hourofweek).std()
+
+hourofweekMeans -= hourofweekMeans.mean()
+dayofmonthMeans -= dayofmonthMeans.mean()
+seasonofyearMeans -= seasonofyearMeans.mean()
 
 
-dm = dg.groupby(dg.hourofweek).mean()
-
+dg['adjustedHOW'] = dg.apply(lambda row: row['countItems'] -
+                             hourofweekMeans.loc[row['hourofweek']].countItems, axis=1)
+dg['adjustedHowDomSeason'] = dg.apply(
+    lambda row: row['adjustedHowDom'] - seasonofyearMeans.loc[row['season']].countItems, axis=1)
+dg['adjustedHowDom'] = dg.apply(
+    lambda row: row['adjustedHOW'] - dayofmonthMeans.loc[row['day']].countItems, axis=1)
 
 # df[['registration_datetime','patient']].resample('60min', on='registration_datetime').apply(countLines)
 # plot([1, 2, 3], [1, 2, 3], 'go-', label='line 1', linewidth=2)
-dg.set_index(['registration_datetime'], inplace=True)
 
 # Plot the resamle
 # data = [go.Scatter(x=da['registration_datetime'], y=dg['patient'])]
