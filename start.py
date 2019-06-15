@@ -1,8 +1,15 @@
+from pylab import rcParams
+import matplotlib
+import statsmodels.api as sm
+import itertools
+import warnings
 import csv
 # from dateutil import parser
 import plotly.plotly as py
 import plotly.graph_objs as go
 import plotly.figure_factory as ff
+import matplotlib.pyplot as plt
+
 
 import numpy as np
 import time
@@ -15,38 +22,50 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 
+warnings.filterwarnings("ignore")
+plt.style.use('fivethirtyeight')
+matplotlib.rcParams['axes.labelsize'] = 14
+matplotlib.rcParams['xtick.labelsize'] = 12
+matplotlib.rcParams['ytick.labelsize'] = 12
+matplotlib.rcParams['text.color'] = 'k'
+
+
+fileName = 'Data/ERlast2years.csv'
+
+
 parse_dates = ['registration_datetime', 'traige_datetime', 'discharge_datetime', 'closing_of_ed_record_datetime', 'arrival_at_department_datetime',
                'actual_transfer_datetime', 'nursing_care_report_start_of_reporting_datetime', 'receivement_approvement_of_first_sampling', 'last_results_document_creation_hour']
 
-df = pd.read_csv('Data/ERlast2years.csv',
+# dtype={"hospitalization_department": str, "planned_transfer_date": str, "minutes_from_admittance_to_discharge": str, "referrer": str, "triage_urgency": int32)
+
+start = time.time()
+
+df = pd.read_csv(fileName,
                  parse_dates=parse_dates, low_memory=False)
 
-# , dtype={"hospitalization_department": str, "planned_transfer_date": str, "minutes_from_admittance_to_discharge": str, "referrer": str, "triage_urgency": int32})
+end = time.time()
+print("Imported CSV: ", end - start)
 
 
 df = df.sort_values('registration_datetime')
 
-
-# df[df.index==1]['registration_datetime'].to_string()
-# hebcal.TimeInfo(df[df.index==1]['registration_datetime'].to_string(), timezone='Asia/Jerusalem', longitude=35.2137, latitude=31.7683)
-# hebcal.calendar.is_holiday()
-# def isHoliday(dateString):
-#     return hebcal.calendar.is_holiday(hebcal.TimeInfo(dateString.strftime("%H:%M:%S.%f - %b %d %Y"), timezone='Asia/Jerusalem', longitude=35.2137, latitude=31.7683))
-# df['holday'] =
-
+# Prepare Dataframe for working with data
 
 df['hour'] = df['registration_datetime'].dt.hour
 df['month'] = df['registration_datetime'].dt.month
 df['day'] = df['registration_datetime'].dt.day
 df['weekday'] = df['registration_datetime'].dt.weekday
+
 # This has monday = 0
+
 seasons = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 1]
 month_to_season = dict(zip(range(1, 13), seasons))
 df['season'] = df['registration_datetime'].dt.month.map(month_to_season)
-
-# df['day_of_week'] = df['registration_datetime'].dt.day_name()
 df['hourofweek'] = df.apply(lambda x: "%02d%02d" %
                             (x['weekday'], x['hour']), axis=1)
+
+df['registrationFloor'] = df['registration_datetime'].dt.floor("H")
+df['countItems'] = 1
 
 ############################# Begin Group by Day/Hour  #############################
 # If going to do resampling
@@ -63,7 +82,6 @@ df['hourofweek'] = df.apply(lambda x: "%02d%02d" %
 # dg = df[['registration_datetime', 'patient']].resample(
 #     '30min', on='registration_datetime').apply(countLines)
 
-df['countItems'] = 1
 
 dg = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
     '60min', on='registration_datetime').sum()
@@ -72,53 +90,61 @@ dg = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_disc
 
 dg['registration_datetime'] = dg.index
 
-
-dg['hour'] = dg['registration_datetime'].dt.hour
-dg['month'] = dg['registration_datetime'].dt.month
-dg['day'] = dg['registration_datetime'].dt.day
-dg['weekday'] = dg['registration_datetime'].dt.weekday
-# This has monday = 0
-seasons = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 1]
-month_to_season = dict(zip(range(1, 13), seasons))
-dg['season'] = dg['registration_datetime'].dt.month.map(month_to_season)
-
-# df['day_of_week'] = df['registration_datetime'].dt.day_name()
-# dg['hourofweek'] = dg.apply(lambda x:"%02d%02d" % (x['weekday'],x['hour']),axis=1)
-dg['hourofweek'] = dg.apply(lambda x: (
-    x['weekday'] * 24 + x['hour']), axis=1)
-
-hourofweekMeans = dg.groupby(dg.hourofweek).mean()
-dayofmonthMeans = dg.groupby(dg.day).mean()
-seasonofyearMeans = dg.groupby(dg.season).mean()
-# dhwstd = dg.groupby(dg.hourofweek).std()
-
-hourofweekMeans -= hourofweekMeans.mean()
-dayofmonthMeans -= dayofmonthMeans.mean()
-seasonofyearMeans -= seasonofyearMeans.mean()
+# plt.scatter(dg['registration_datetime'], dg['countItems'])
 
 
-dg['adjustedHOW'] = dg.apply(lambda row: row['countItems'] -
-                             hourofweekMeans.loc[row['hourofweek']].countItems, axis=1)
-dg['adjustedHowDomSeason'] = dg.apply(
-    lambda row: row['adjustedHowDom'] - seasonofyearMeans.loc[row['season']].countItems, axis=1)
-dg['adjustedHowDom'] = dg.apply(
-    lambda row: row['adjustedHOW'] - dayofmonthMeans.loc[row['day']].countItems, axis=1)
+y = dg['countItems']
 
-# df[['registration_datetime','patient']].resample('60min', on='registration_datetime').apply(countLines)
-# plot([1, 2, 3], [1, 2, 3], 'go-', label='line 1', linewidth=2)
+rcParams['figure.figsize'] = 18, 8
+decomposition = sm.tsa.seasonal_decompose(y, model='additive')
+# fig = decomposition.plot()
 
-# Plot the resamle
-# data = [go.Scatter(x=da['registration_datetime'], y=dg['patient'])]
-# py.iplot(data, filename='time-series-simple')
+# print(decomposition.trend)
+# print(decomposition.seasonal)
+# print(decomposition.resid)
+# print(decomposition.observed)
 
-# spikes = dg.loc[(dg['patient'] >= dg.mean()['patient'] + 2 * dg.std()['patient'] )=
-dg['spikes'] = (dg['patient'] >= dg.mean()[
-                'patient'] + 2 * dg.std()['patient'])
+dg['stabalized'] = decomposition.resid
+
+
+dg['delta'] = dg['stabalized'].diff()
+
+# plt.scatter(dg['registration_datetime'], dg['delta'])
+
+
+# dg.dropna(inplace=True)
+
+dg['deltapositive'] = dg.apply(
+    lambda row: 1 if row['delta'] > 0 else 0, axis=1)
+
+# dg['deltapositivetrend'] = dg.apply(
+#     lambda row: 1 + row['deltapositive'].shift() if row['delta'] > 0 else 0)
+
+dg['spike'] = (dg['stabalized'] >= dg.mean()[
+    'stabalized'] + 2 * dg.std()['stabalized'])
+
+# plt.scatter(dg['registration_datetime'], dg['spike'])
 
 # Count number of spikes
 # dg.groupby([dg.spikes]).count()
 
 ############################# End Group by Day/Hour  #############################
+
+start = time.time()
+
+df['visitsInHour'] = df.apply(lambda row: len(da.loc[str(
+    pd.to_datetime(row['registration_datetime'])
+):str(pd.to_datetime(row['discharge_datetime']))]), axis=1)
+end = time.time()
+print(end - start)
+
+
+start = time.time()
+df['spike'] = df.apply(
+    lambda row: dg.loc[df['registration_datetime'].dt.floor("H")]['spike'], axis=1)
+
+end = time.time()
+print(end - start)
 
 
 da = df[['registration_datetime', 'discharge_datetime', 'patient', ]].copy()
