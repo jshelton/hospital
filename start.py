@@ -1,10 +1,11 @@
+from pandas import DataFrame
 from pylab import rcParams
 import matplotlib
 import statsmodels.api as sm
 import itertools
 import warnings
 import csv
-# from dateutil import parser
+from dateutil import parser
 import plotly.plotly as py
 import plotly.graph_objs as go
 import plotly.figure_factory as ff
@@ -130,21 +131,22 @@ dg['spike'] = (dg['stabalized'] >= dg.mean()[
 
 ############################# End Group by Day/Hour  #############################
 
-start = time.time()
-
-df['visitsInHour'] = df.apply(lambda row: len(da.loc[str(
-    pd.to_datetime(row['registration_datetime'])
-):str(pd.to_datetime(row['discharge_datetime']))]), axis=1)
-end = time.time()
-print(end - start)
+# start = time.time()
+# df['spikeStdDev'] = df.apply(
+#     lambda row: dg.loc[df['registration_datetime'].dt.floor("H")]['spike'], axis=1)
 
 
-start = time.time()
-df['spike'] = df.apply(
-    lambda row: dg.loc[df['registration_datetime'].dt.floor("H")]['spike'], axis=1)
+# end = time.time()
+# print("Spikes due to statistical impressoin", end - start)
 
-end = time.time()
-print(end - start)
+
+# start = time.time()
+
+# df['visitsInHour'] = df.apply(lambda row: len(da.loc[str(
+#     pd.to_datetime(row['registration_datetime'])
+# ):str(pd.to_datetime(row['discharge_datetime']))]), axis=1)
+# end = time.time()
+# print("Spike: visitors in hour", end - start)
 
 
 da = df[['registration_datetime', 'discharge_datetime', 'patient', ]].copy()
@@ -152,52 +154,68 @@ da = df[['registration_datetime', 'discharge_datetime', 'patient', ]].copy()
 # Iterate through each row and search for the items that are
 # in proximity by using a date ran
 
-da.set_index(['registration_datetime'], inplace=True)
+df.set_index(['registration_datetime'], inplace=True)
 
+
+# if 1 == 0:
+#     dvisitors = pd.read_csv('Results/DVWithVititsInHour.csv',
+#                             low_memory=False)
+# else:
+visitorCount = np.zeros(len(df))
+spikesHour = np.zeros(len(df))
+
+maxCount = 300
+limitRuns = False
+
+start = time.time()
+rowcount = 0
+for index, row in df.iterrows():
+    rowcount += 1
+    if (rowcount % 2500 == 0):
+        end = time.time()
+        print(end - start, rowcount)
+        start = time.time()
+
+        if limitRuns and rowcount > maxCount:
+            break
+
+    # mask=(da['registration_datetime'] > '2018-06-28 01:38') & (da['registration_datetime'] <= '2018-06-30')
+    # print(da.loc[mask])
+
+    eventdate = pd.to_datetime(index)
+    startdate = eventdate
+
+    # startdate = pd.to_datetime('2018-06-28 01:38:08')
+    enddate = pd.to_datetime(row['discharge_datetime'])
+    # df = df.set_index(['registration_datetime'])
+
+    # print(rowcount, startdate, enddate, index, row['patient'], len(
+    #     da.loc[str(startdate):str(enddate)]))
+    # print(da.loc[str(startdate):str(enddate)])
+
+    visitorCount[rowcount] = len(
+        df.loc[str(startdate):str(enddate)])
+
+    lookupTime = pd.to_datetime(index).floor("H")
+    spikesHour[rowcount] = dg.loc[lookupTime]['spike']
+
+df['visits_within_hour'] = visitorCount
+df['spikesHour'] = spikesHour
+# df.to_csv('Results/DFSpikesVisits.csv')
+# df.to_csv('Results/DVWithVititsInHour.csv')
+writeToFiles = True
 if 1 == 0:
-    dvisitors = pd.read_csv('Results/DVWithVititsInHour.csv',
-                            low_memory=False)
+    df.corr().to_csv('Results/Correlation With VisitsWithinHour.csv')
+    df.to_csv('Results/DFCorrelations.csv')
 
-else:
 
-    visitorCount = np.zeros(len(df))
+############
+# What time do people go in a week
+pd.crosstab(index=df["age"],
+            columns=df["hourofweek"])
 
-    start = time.time()
-    rowcount = 0
-    for index, row in da.iterrows():
-        if (rowcount % 2500 == 0):
-            end = time.time()
-            print(end - start, rowcount)
-            start = time.time()
+# heatmap
 
-        #     break
-        # mask=(da['registration_datetime'] > '2018-06-28 01:38') & (da['registration_datetime'] <= '2018-06-30')
-        # print(da.loc[mask])
-
-        eventdate = pd.to_datetime(index)
-        startdate = eventdate
-
-        # startdate = pd.to_datetime('2018-06-28 01:38:08')
-        enddate = pd.to_datetime(row['discharge_datetime'])
-        # df = df.set_index(['registration_datetime'])
-
-        # print(rowcount, startdate, enddate, index, row['patient'], len(
-        #     da.loc[str(startdate):str(enddate)]))
-        # print(da.loc[str(startdate):str(enddate)])
-
-        visitorCount[rowcount] = len(
-            da.loc[str(startdate):str(enddate)])
-
-        visitorCount[rowcount] = len(
-            da.loc[str(startdate):str(enddate)])
-
-        rowcount += 1
-
-    df['visits_within_hour'] = visitorCount
-    # df.to_csv('Results/DVWithVititsInHour.csv')
-    # df.to_csv('Results/DVWithArrivalsBeforeDischarge.csv')
-
-    df['arrivalsBeforeDischarge'] = visitorCount
 
 spikes = df.loc[(df['visits_within_hour'] >= df.mean()[
     'visits_within_hour'] + 2 * df.std()['visits_within_hour'])]
@@ -243,9 +261,6 @@ data = [go.Scatter(x=df['registration_datetime'], y=df['visits_within_hour'])]
 # data = [go.Scatter(x=dff['registration_datetime'], y=dff['visits_within_hour'])]
 
 py.iplot(data, filename='time-series-simple')
-
-if 1 == 0:
-    df.corr().to_csv('Results/Correlation With VisitsWithinHour.csv')
 
 
 # Reasons people left
