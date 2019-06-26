@@ -11,6 +11,9 @@ import plotly.graph_objs as go
 import plotly.figure_factory as ff
 import matplotlib.pyplot as plt
 
+from factor_analyzer import FactorAnalyzer
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+
 
 import numpy as np
 import time
@@ -87,9 +90,15 @@ df['countItems'] = 1
 dg = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
     '60min', on='registration_datetime').sum()
 
+dg = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
+    '60min', on='registration_datetime').sum()
+
+
 # dg.set_index(['registration_datetime'], inplace=True)
 
 dg['registration_datetime'] = dg.index
+
+dd['registration_datetime'] = dd.index
 
 # plt.scatter(dg['registration_datetime'], dg['countItems'])
 
@@ -211,10 +220,16 @@ if 1 == 0:
 
 ############
 # What time do people go in a week
-pd.crosstab(index=df["age"],
-            columns=df["hourofweek"])
+ct.pd.crosstab(index=df["age"],
+               columns=df["hourofweek"])
 
 # heatmap
+
+
+plt.pcolor(ct)
+# plt.yticks(np.arange(0.5, len(ct.index), 1), ct.index)
+# plt.xticks(np.arange(0.5, len(ct.columns), 1), ct.columns)
+plt.show()
 
 
 spikes = df.loc[(df['visits_within_hour'] >= df.mean()[
@@ -228,24 +243,29 @@ a = df['visits_within_hour'].values.tolist()
 # py.iplot(ff.create_distplot([a[c] for c in a.columns], a.columns, bin_size=1),
 #          filename='distplot with pandas')
 
+dm = dg.copy()
 
-def factorAnalysis(df):
-    df.drop(['case', 'patient', 'traige_datetime',
-             'discharge_datetime', 'closing_of_ed_record_datetime',
-             'arrival_at_department_datetime', 'actual_transfer_datetime',
-             'nursing_care_report_start_of_reporting_datetime',
-             'movment_reason_1st_and_2nd', 'referrer', 'triage_scale',
-             'discharge_from_ed', 'hospitalization',
-             'receivement_approvement_of_first_sampling', 'ed_record_creation_date',
-             'ed_record_creation_hour', 'hospitalization_department',
-             'planned_transfer_date', 'planned_transfer_hour',
-             'minutes_from_admittance_to_hospitalization_decision',
-             'minutes_from_decision_to_arrival_at_hospitalization_department',
-             'summary', 'patient_condition_in_release', 'treatment_recommendation',
-             'physical_condition', 'eeg'], axis=1, inplace=True)
-    chi_square_value, p_value = calculate_bartlett_sphericity(df)
+# def factorAnalysis(df):
+dm.drop(['case', 'patient', 'traige_datetime',
+         'discharge_datetime', 'closing_of_ed_record_datetime',
+         'arrival_at_department_datetime', 'actual_transfer_datetime',
+         'nursing_care_report_start_of_reporting_datetime',
+         'movment_reason_1st_and_2nd', 'referrer', 'triage_scale',
+         'discharge_from_ed', 'hospitalization',
+         'receivement_approvement_of_first_sampling', 'ed_record_creation_date',
+         'ed_record_creation_hour', 'hospitalization_department',
+         'planned_transfer_date', 'planned_transfer_hour',
+         'minutes_from_admittance_to_hospitalization_decision',
+         'minutes_from_decision_to_arrival_at_hospitalization_department',
+         'summary', 'patient_condition_in_release', 'treatment_recommendation',
+         'physical_condition', 'eeg', 'registration_datetime'], axis=1, inplace=True)
+chi_square_value, p_value = calculate_bartlett_sphericity(dm)
 
 # dn.drop(['last_results_document_creation_hour','registration_datetime'],axis=1, inplace=True)
+
+
+fa = FactorAnalyzer()
+fa.analyze(dm, 25, rotation=None)
 
 
 # begin example
@@ -265,3 +285,7 @@ py.iplot(data, filename='time-series-simple')
 
 # Reasons people left
 df[df.triage_urgency == 1].groupby(['discharge_type']).count()
+
+
+agesCount = df['countItems'].groupby(df.age).count()
+agesCount.hist(bins=100)
