@@ -1,1 +1,5 @@
 ERlast2years.csv
+OtherDataSources/*
+Results/*
+~*
+.ipynb_checkpoints/*
