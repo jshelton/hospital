@@ -1,3 +1,11 @@
+from datetime import datetime, timedelta
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+import hebcal
+import time
+import numpy as np
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+from factor_analyzer import FactorAnalyzer
 from pandas import DataFrame
 from pylab import rcParams
 import matplotlib
@@ -11,27 +19,25 @@ import plotly.graph_objs as go
 import plotly.figure_factory as ff
 import matplotlib.pyplot as plt
 
-from factor_analyzer import FactorAnalyzer
-from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
-
-
-import numpy as np
-import time
-import hebcal
-
-from sklearn.linear_model import LinearRegression
-
-
-import pandas as pd
-from datetime import datetime, timedelta
+import seaborn as sns
+sns.set()
 
 
 warnings.filterwarnings("ignore")
 plt.style.use('fivethirtyeight')
+plt.style.use(['seaborn', 'fivethirtyeight'])
+
+# https://github.com/Microsoft/vscode-python/issues/3773
+
 matplotlib.rcParams['axes.labelsize'] = 14
 matplotlib.rcParams['xtick.labelsize'] = 12
 matplotlib.rcParams['ytick.labelsize'] = 12
-matplotlib.rcParams['text.color'] = 'k'
+matplotlib.rcParams['lines.markersize'] = 1
+# matplotlib.rcParams['text.color'] = 'g'
+matplotlib.rcParams['axes.labelcolor'] = 'g'
+matplotlib.rcParams.update({'text.color': "blue",
+                            'axes.labelcolor': "blue"})
+# matplotlib.rcParams['grid.color'] = 'k'
 
 
 fileName = 'Data/ERlast2years.csv'
@@ -48,7 +54,7 @@ df = pd.read_csv(fileName,
                  parse_dates=parse_dates, low_memory=False)
 
 end = time.time()
-print("Imported CSV: ", end - start)
+print("Imported CSV: ", end - start, "seconds")
 
 
 df = df.sort_values('registration_datetime')
@@ -58,9 +64,8 @@ df = df.sort_values('registration_datetime')
 df['hour'] = df['registration_datetime'].dt.hour
 df['month'] = df['registration_datetime'].dt.month
 df['day'] = df['registration_datetime'].dt.day
-df['weekday'] = df['registration_datetime'].dt.weekday
+df['weekday'] = df['registration_datetime'].dt.weekday  # Beware Monday = 0
 
-# This has monday = 0
 
 seasons = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 1]
 month_to_season = dict(zip(range(1, 13), seasons))
@@ -70,6 +75,82 @@ df['hourofweek'] = df.apply(lambda x: "%02d%02d" %
 
 df['registrationFloor'] = df['registration_datetime'].dt.floor("H")
 df['countItems'] = 1
+
+
+# Histogram of arrivals per time periods
+dm = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
+    'H', on='registration_datetime').sum()
+timeIntervalSample = dm.countItems
+timeIntervalSample.name = "Arrivals per Hour"
+sns.distplot(timeIntervalSample,
+             bins=timeIntervalSample.matimeIntervalSample())
+dm.size  # 35088
+timeIntervalSample.mean() + 2 * timeIntervalSample.std()  # 23
+dm.loc[(dm['countItems'] > timeIntervalSample.mean() +
+        2 * timeIntervalSample.std())].size  # 876 ~ 2.5%
+# Arrivals per Hour
+
+
+dm = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
+    'D', on='registration_datetime').sum()
+
+timeIntervalSample = dm.countItems
+timeIntervalSample.name = "Arrivals per Day"
+sns.distplot(timeIntervalSample, bins=90)
+timeIntervalSample.mean() + 2 * timeIntervalSample.std()  # 325
+dm.loc[(dm['countItems'] > 325)].size  # 46 / 1462 = 3%
+# Arrivals per Day
+
+
+dm = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
+    'W', on='registration_datetime').sum()
+
+timeIntervalSample = dm.countItems
+timeIntervalSample.name = "Arrivals per Week"
+sns.distplot(timeIntervalSample, bins=50)
+timeIntervalSample.mean() + 1 * timeIntervalSample.std()  # 1930
+dm.loc[(dm['countItems'] > 1930)].size  # 11
+# mean+1 * std = 1930
+# 11 spikes / 105 = 10%
+# Arrivals per Week
+
+
+dm = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
+    '30T', on='registration_datetime').sum()
+timeIntervalSample = dm.countItems
+timeIntervalSample.name = "Arrivals per Half Hour"
+sns.distplot(timeIntervalSample,
+             bins=timeIntervalSample.matimeIntervalSample())
+dm.size  # 70176
+timeIntervalSample.mean() + 2 * timeIntervalSample.std()  # 12
+dm.loc[(dm['countItems'] > timeIntervalSample.mean() +
+        2 * timeIntervalSample.std())].size  # 2402 ~3.5%
+# Arrivals per Hour
+
+
+dm = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
+    '480T', on='registration_datetime').sum()
+timeIntervalSample = dm.countItems
+timeIntervalSample.name = "Arrivals per 8-Hour period"
+sns.distplot(timeIntervalSample, bins=80)
+dm.size  # 4386
+timeIntervalSample.mean() + 1 * timeIntervalSample.std()  # 125
+dm.loc[(dm['countItems'] > timeIntervalSample.mean() +
+        1 * timeIntervalSample.std())].size  # 714 ~3.5%
+
+
+# beginning of second
+timeIntervalSample2 = dm.loc[(dm['countItems'] > 50)].countItems
+timeIntervalSample2.size  # 1495
+timeIntervalSample2.name = "Arrivals per 8-Hour period (busy time)"
+sns.distplot(timeIntervalSample2, bins=100)
+
+timeIntervalSample2.mean() + 2 * timeIntervalSample2.std()  # 152
+dm.loc[(dm['countItems'] > timeIntervalSample2.mean() +
+        2 * timeIntervalSample2.std())].size  # 36 ~10%
+
+
+# Arrivals per Hour
 
 ############################# Begin Group by Day/Hour  #############################
 # If going to do resampling
@@ -90,24 +171,34 @@ df['countItems'] = 1
 dg = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
     '60min', on='registration_datetime').sum()
 
-dg = df[['registration_datetime', 'countItems', 'minutes_from_admittance_to_discharge']].resample(
-    '60min', on='registration_datetime').sum()
-
 
 # dg.set_index(['registration_datetime'], inplace=True)
 
 dg['registration_datetime'] = dg.index
 
-dd['registration_datetime'] = dd.index
 
-# plt.scatter(dg['registration_datetime'], dg['countItems'])
+plt.scatter(dg['registration_datetime'], dg['countItems'], 1)
+
+# Histogram
+sns.distplot(dg['countItems'])
+
+
+# begin example
+hist_data = dg['countItems']
+group_labels = ['distplot']
+
+fig = ff.create_distplot(hist_data, group_labels)
+py.iplot(fig, filename='Basic Distplot')
+# End Example
 
 
 y = dg['countItems']
 
 rcParams['figure.figsize'] = 18, 8
+
 decomposition = sm.tsa.seasonal_decompose(y, model='additive')
-# fig = decomposition.plot()
+
+fig = decomposition.plot()
 
 # print(decomposition.trend)
 # print(decomposition.seasonal)
@@ -119,7 +210,7 @@ dg['stabalized'] = decomposition.resid
 
 dg['delta'] = dg['stabalized'].diff()
 
-# plt.scatter(dg['registration_datetime'], dg['delta'])
+plt.scatter(dg['registration_datetime'], dg['delta'], 1)
 
 
 # dg.dropna(inplace=True)
@@ -133,7 +224,7 @@ dg['deltapositive'] = dg.apply(
 dg['spike'] = (dg['stabalized'] >= dg.mean()[
     'stabalized'] + 2 * dg.std()['stabalized'])
 
-# plt.scatter(dg['registration_datetime'], dg['spike'])
+# plt.scatter(dg['registration_datetime'], dg['spike'],1)
 
 # Count number of spikes
 # dg.groupby([dg.spikes]).count()
