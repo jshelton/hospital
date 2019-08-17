@@ -287,5 +287,10 @@ py.iplot(data, filename='time-series-simple')
 df[df.triage_urgency == 1].groupby(['discharge_type']).count()
 
 
+df['age'].diff().hist()
+dm.drop(['registration_datetime'], axis=1, inplace=True)
 agesCount = df['countItems'].groupby(df.age).count()
 agesCount.hist(bins=100)
+
+# interesting
+df['age'].diff().hist(bins=100)
